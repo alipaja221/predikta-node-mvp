@@ -1,0 +1,14 @@
+{
+  "name": "predikta-node-mvp",
+  "version": "1.0.0",
+  "description": "Mockup MVP IIoT Predictive Maintenance Dashboard",
+  "scripts": {
+    "start": "serve -s . -l $PORT"
+  },
+  "dependencies": {
+    "serve": "^14.2.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

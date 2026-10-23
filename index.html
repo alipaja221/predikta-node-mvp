@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PREDIKTA // INDUSTRIAL TELEMETRY CONSOLE</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Space Grotesk', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            base: '#090A0C',
+            panel: '#0F1115',
+            line: '#222630',
+            amber: '#FF6B00',
+            lime: '#00E676',
+            crimson: '#FF1744',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #090A0C;
+      color: #E2E4E9;
+      font-feature-settings: "zero", "ss01";
+    }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .bg-grid {
+      background-size: 24px 24px;
+      background-image: 
+        linear-gradient(to right, rgba(34, 38, 48, 0.35) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(34, 38, 48, 0.35) 1px, transparent 1px);
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #090A0C; }
+    ::-webkit-scrollbar-thumb { background: #222630; }
+    ::-webkit-scrollbar-thumb:hover { background: #FF6B00; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col font-mono text-xs selection:bg-amber selection:text-black">
+
+  <header class="border-b border-line bg-panel sticky top-0 z-30">
+    <div class="max-w-[1440px] mx-auto flex flex-wrap items-center justify-between">
+      <div class="flex items-center border-r border-line px-4 py-3 space-x-3">
+        <div class="w-3 h-3 bg-amber"></div>
+        <span class="font-sans font-bold text-sm tracking-widest uppercase text-white">PREDIKTA<span class="text-zinc-500">//NODE-OS</span></span>
+        <span class="border border-line bg-base px-1.5 py-0.5 text-[10px] text-zinc-400">BUILD 2026.10</span>
+      </div>
+
+      <div class="hidden xl:flex items-center divide-x divide-line text-[11px] text-zinc-400 flex-1">
+        <div class="px-4 py-3 flex items-center space-x-2">
+          <span class="text-zinc-500">PROTOCOL:</span>
+          <span class="text-zinc-200">MQTT/WSS (TLS 1.3)</span>
+        </div>
+        <div class="px-4 py-3 flex items-center space-x-2">
+          <span class="text-zinc-500">SAMPLING:</span>
+          <span class="text-zinc-200 tabular">1000 Hz</span>
+        </div>
+        <div class="px-4 py-3 flex items-center space-x-2">
+          <span class="text-zinc-500">UPTIME:</span>
+          <span id="sys-uptime" class="text-zinc-200 tabular">14D 08:41:19</span>
+        </div>
+        <div class="px-4 py-3 flex items-center space-x-2">
+          <span class="w-2 h-2 bg-lime inline-block"></span>
+          <span class="text-lime font-bold">BUS ONLINE</span>
+        </div>
+      </div>
+
+      <div class="flex items-center border-l border-line">
+        <button onclick="triggerRandomSpike()" class="px-4 py-3 border-r border-line hover:bg-zinc-800/60 text-zinc-300 transition uppercase tracking-wider text-[11px] flex items-center space-x-2">
+          <span>[⚡ UJI BEBAN]</span>
+        </button>
+        <button onclick="openModal()" class="px-5 py-3 bg-amber hover:bg-[#ff852e] text-black font-bold transition uppercase tracking-wider text-[11px]">
+          + INJEKSI PAYLOAD
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1440px] w-full mx-auto flex-grow border-x border-line flex flex-col">
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-line border-b border-line bg-panel">
+      <div class="p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-zinc-400 mb-3">
+          <span class="text-[10px] uppercase tracking-widest">[01] CORE TEMPERATURE</span>
+          <span id="temp-status-tag" class="text-[10px] px-1.5 py-0.5 border border-lime/40 text-lime bg-lime/5">NOMINAL</span>
+        </div>
+        <div class="flex items-baseline justify-between my-1">
+          <div id="val-temp" class="font-sans text-4xl font-bold text-white tabular tracking-tight">42.5<span class="text-lg text-zinc-500 font-mono">°C</span></div>
+          <div class="text-right text-[11px] text-zinc-400">
+            <div>LIM: <span id="lbl-threshold" class="text-zinc-200">65.0°C</span></div>
+            <div>Δ: <span class="text-lime">+0.4°C/m</span></div>
+          </div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-line/60">
+          <div class="w-full bg-base h-1.5 overflow-hidden border border-line">
+            <div id="bar-temp" class="bg-lime h-full transition-all duration-300" style="width: 42%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-zinc-400 mb-3">
+          <span class="text-[10px] uppercase tracking-widest">[02] VIBRATION VELOCITY (RMS)</span>
+          <span class="text-[10px] px-1.5 py-0.5 border border-zinc-700 text-zinc-300">ISO-10816</span>
+        </div>
+        <div class="flex items-baseline justify-between my-1">
+          <div id="val-vib" class="font-sans text-4xl font-bold text-white tabular tracking-tight">2.41<span class="text-lg text-zinc-500 font-mono">mm/s</span></div>
+          <div class="text-right text-[11px] text-zinc-400">
+            <div>PEAK: <span class="text-zinc-200">3.10</span></div>
+            <div>AXIS: <span class="text-zinc-200">X/Y/Z</span></div>
+          </div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-line/60 flex justify-between text-[10px] text-zinc-400">
+          <span>HARMONIC FREQ:</span>
+          <span class="text-zinc-200 tabular">49.98 Hz</span>
+        </div>
+      </div>
+
+      <div class="p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-zinc-400 mb-3">
+          <span class="text-[10px] uppercase tracking-widest">[03] CHAMBER HUMIDITY</span>
+          <span class="text-[10px] px-1.5 py-0.5 border border-zinc-700 text-zinc-300">DHT-IND</span>
+        </div>
+        <div class="flex items-baseline justify-between my-1">
+          <div id="val-hum" class="font-sans text-4xl font-bold text-white tabular tracking-tight">54.0<span class="text-lg text-zinc-500 font-mono">%RH</span></div>
+          <div class="text-right text-[11px] text-zinc-400">
+            <div>DEW: <span class="text-zinc-200">19.2°C</span></div>
+            <div>PRES: <span class="text-zinc-200">1012 hPa</span></div>
+          </div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-line/60 flex justify-between text-[10px] text-zinc-400">
+          <span>CONDENSATION RISK:</span>
+          <span class="text-lime">0.02% (NIL)</span>
+        </div>
+      </div>
+
+      <div class="p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-zinc-400 mb-3">
+          <span class="text-[10px] uppercase tracking-widest">[04] REMAINING USEFUL LIFE (RUL)</span>
+          <span class="text-[10px] px-1.5 py-0.5 border border-amber/40 text-amber bg-amber/5">ML-INFERENCE</span>
+        </div>
+        <div class="flex items-baseline justify-between my-1">
+          <div id="val-rul" class="font-sans text-4xl font-bold text-amber tabular tracking-tight">3,410<span class="text-lg text-zinc-500 font-mono">HRS</span></div>
+          <div class="text-right text-[11px] text-zinc-400">
+            <div>CONF: <span class="text-zinc-200">94.2%</span></div>
+            <div>ERR: <span class="text-zinc-200">±12h</span></div>
+          </div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-line/60 flex justify-between text-[10px] text-zinc-400">
+          <span>NEXT MAINTENANCE:</span>
+          <span class="text-zinc-200">142 DAYS</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-line border-b border-line">
+      <div class="lg:col-span-2 bg-base bg-grid p-5 flex flex-col justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div class="flex items-center space-x-3">
+            <span class="w-2 h-2 bg-amber animate-ping"></span>
+            <h2 class="font-sans font-bold text-xs uppercase tracking-widest text-white">REAL-TIME VIBRATION & THERMAL WAVEFORM (CH1 / CH2)</h2>
+          </div>
+          <div class="flex items-center space-x-4 text-[11px]">
+            <span class="flex items-center space-x-1.5"><span class="w-2.5 h-0.5 bg-amber inline-block"></span><span class="text-zinc-400">CH1: TEMP (°C)</span></span>
+            <span class="flex items-center space-x-1.5"><span class="w-2.5 h-0.5 bg-lime inline-block"></span><span class="text-zinc-400">CH2: VIB (mm/s)</span></span>
+            <button onclick="togglePauseWave()" id="btn-pause" class="border border-line bg-panel px-2 py-0.5 text-[10px] text-zinc-300 hover:border-amber">PAUSE</button>
+          </div>
+        </div>
+        <div class="relative w-full h-52 border border-line bg-[#07080A]">
+          <canvas id="telemetryCanvas" class="w-full h-full block"></canvas>
+          <div class="absolute top-2 left-2 text-[10px] text-zinc-500 pointer-events-none">
+            SCALE: 100ms/div | TRIG: AUTO
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-panel p-5 flex flex-col justify-between h-72 lg:h-auto">
+        <div class="flex items-center justify-between border-b border-line pb-3 mb-3">
+          <span class="font-sans font-bold text-xs uppercase tracking-widest text-white">RAW MQTT STREAM</span>
+          <span class="text-[10px] text-zinc-500">TOPIC: factory/plc/#</span>
+        </div>
+        <div id="serial-terminal" class="flex-1 overflow-y-auto space-y-1.5 text-[11px] font-mono pr-1 max-h-48"></div>
+        <div class="pt-3 border-t border-line mt-3 flex items-center justify-between text-[10px] text-zinc-500">
+          <span>BAUD: 115200</span>
+          <button onclick="clearTerminal()" class="hover:text-white underline">CLEAR BUFFER</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-panel flex-grow flex flex-col">
+      <div class="p-5 border-b border-line flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="font-sans font-bold text-sm uppercase tracking-wider text-white">NODE ANOMALY & TELEMETRY LEDGER</h2>
+          <p class="text-[11px] text-zinc-400 mt-0.5">Rekaman paket sensor dari klaster PLC & mikrokontroler lapangan.</p>
+        </div>
+        <div class="flex border border-line bg-base self-start sm:self-auto">
+          <button onclick="filterTable('ALL')" id="flt-ALL" class="flt-btn px-3.5 py-1.5 text-[11px] font-bold bg-amber text-black uppercase">ALL</button>
+          <button onclick="filterTable('NOMINAL')" id="flt-NOMINAL" class="flt-btn px-3.5 py-1.5 text-[11px] text-zinc-400 hover:text-white border-l border-line uppercase">NOMINAL</button>
+          <button onclick="filterTable('WARNING')" id="flt-WARNING" class="flt-btn px-3.5 py-1.5 text-[11px] text-zinc-400 hover:text-white border-l border-line uppercase">WARNING</button>
+          <button onclick="filterTable('CRITICAL')" id="flt-CRITICAL" class="flt-btn px-3.5 py-1.5 text-[11px] text-zinc-400 hover:text-white border-l border-line uppercase">CRITICAL</button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b border-line bg-base text-[10px] text-zinc-400 uppercase tracking-widest">
+              <th class="py-3 px-4 border-r border-line">PACKET_ID</th>
+              <th class="py-3 px-4 border-r border-line">NODE_DESIGNATOR</th>
+              <th class="py-3 px-4 border-r border-line">SECTOR</th>
+              <th class="py-3 px-4 border-r border-line text-right">TEMP (°C)</th>
+              <th class="py-3 px-4 border-r border-line text-right">VIB (mm/s)</th>
+              <th class="py-3 px-4 border-r border-line">STATE</th>
+              <th class="py-3 px-4 border-r border-line">TIMESTAMP</th>
+              <th class="py-3 px-4 text-right">COMMAND</th>
+            </tr>
+          </thead>
+          <tbody id="ledger-body" class="divide-y divide-line text-xs tabular"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="payload-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 p-4">
+    <div class="bg-panel border-2 border-amber max-w-md w-full shadow-none">
+      <div class="bg-amber text-black px-4 py-2.5 flex items-center justify-between font-sans font-bold text-xs uppercase tracking-wider">
+        <span>// MANUAL TELEMETRY OVERRIDE</span>
+        <button onclick="closeModal()" class="hover:underline font-mono">[X]</button>
+      </div>
+      <form onsubmit="submitPayload(event)" class="p-5 space-y-4 text-xs">
+        <div>
+          <label class="block text-[10px] uppercase tracking-widest text-zinc-400 mb-1.5">TARGET HARDWARE NODE</label>
+          <select id="inp-node" class="w-full bg-base border border-line px-3 py-2.5 text-white focus:outline-none focus:border-amber">
+            <option value="PLC-01 // TURBINE-A">PLC-01 // TURBINE-A (MAIN HALL)</option>
+            <option value="ESP-04 // COOLING-PUMP">ESP-04 // COOLING-PUMP (UTIL-B)</option>
+            <option value="MOD-09 // CNC-SPINDLE">MOD-09 // CNC-SPINDLE (WORKSHOP)</option>
+            <option value="RACK-02 // SERVER-UPS">RACK-02 // SERVER-UPS (LAB-NET)</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] uppercase tracking-widest text-zinc-400 mb-1.5">INJECT TEMP (°C)</label>
+            <input type="number" step="0.1" id="inp-temp" required value="74.5" class="w-full bg-base border border-line px-3 py-2 text-white tabular focus:outline-none focus:border-amber">
+          </div>
+          <div>
+            <label class="block text-[10px] uppercase tracking-widest text-zinc-400 mb-1.5">INJECT VIB (mm/s)</label>
+            <input type="number" step="0.1" id="inp-vib" required value="6.8" class="w-full bg-base border border-line px-3 py-2 text-white tabular focus:outline-none focus:border-amber">
+          </div>
+        </div>
+        <div>
+          <label class="block text-[10px] uppercase tracking-widest text-zinc-400 mb-1.5">CRITICAL THERMAL TRIP LIMIT (°C)</label>
+          <input type="number" step="0.5" id="inp-limit" required value="65.0" class="w-full bg-base border border-line px-3 py-2 text-white tabular focus:outline-none focus:border-amber">
+        </div>
+        <div class="pt-3 border-t border-line flex justify-end space-x-2">
+          <button type="button" onclick="closeModal()" class="border border-line px-4 py-2 text-zinc-400 hover:text-white uppercase text-[11px]">ABORT</button>
+          <button type="submit" class="bg-amber text-black font-bold px-5 py-2 uppercase text-[11px] hover:bg-[#ff852e]">EXECUTE PAYLOAD</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="alarm-stack" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 max-w-sm w-full pointer-events-none"></div>
+
+  <footer class="border-t border-line bg-base text-zinc-500 text-[11px]">
+    <div class="max-w-[1440px] mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center gap-2">
+      <div>PREDIKTA INDUSTRIAL TELEMETRY // ZERO-BLOAT FRONTEND MOCKUP</div>
+      <div>STATUS: <span class="text-zinc-300">READY FOR RAILWAY DEPLOYMENT</span></div>
+    </div>
+  </footer>
+
+  <script>
+    let ledgerData = [
+      { id: "0x9F2A", node: "PLC-01 // TURBINE-A", sector: "MAIN_HALL", temp: 42.5, vib: 2.4, state: "NOMINAL", time: "13:02:11.04" },
+      { id: "0x9F29", node: "MOD-09 // CNC-SPINDLE", sector: "WORKSHOP", temp: 69.8, vib: 7.4, state: "CRITICAL", time: "13:01:45.88" },
+      { id: "0x9F28", node: "ESP-04 // COOLING-PUMP", sector: "UTIL_B", temp: 58.2, vib: 4.6, state: "WARNING", time: "12:59:10.12" },
+      { id: "0x9F27", node: "RACK-02 // SERVER-UPS", sector: "LAB_NET", temp: 38.9, vib: 1.1, state: "NOMINAL", time: "12:55:04.50" }
+    ];
+    let activeFilter = 'ALL';
+    let currentTemp = 42.5;
+    let currentVib = 2.41;
+    let thermalLimit = 65.0;
+    let wavePaused = false;
+
+    function renderLedger() {
+      const tbody = document.getElementById('ledger-body');
+      tbody.innerHTML = '';
+      const rows = ledgerData.filter(r => activeFilter === 'ALL' || r.state === activeFilter);
+      if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="py-8 text-center text-zinc-500">// NO TELEMETRY RECORDS //</td></tr>';
+        return;
+      }
+      rows.forEach(r => {
+        let stateBadge = '<span class="px-1.5 py-0.5 border border-lime/40 text-lime bg-lime/5 text-[10px]">NOMINAL</span>';
+        if (r.state === 'WARNING') stateBadge = '<span class="px-1.5 py-0.5 border border-amber/50 text-amber bg-amber/10 text-[10px]">WARNING</span>';
+        if (r.state === 'CRITICAL') stateBadge = '<span class="px-1.5 py-0.5 bg-crimson text-black font-bold text-[10px] animate-pulse">CRITICAL</span>';
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-base/80 transition";
+        tr.innerHTML = `
+          <td class="py-3 px-4 border-r border-line text-zinc-400">${r.id}</td>
+          <td class="py-3 px-4 border-r border-line font-bold text-white">${r.node}</td>
+          <td class="py-3 px-4 border-r border-line text-zinc-400">${r.sector}</td>
+          <td class="py-3 px-4 border-r border-line text-right font-bold ${r.temp >= thermalLimit ? 'text-crimson' : 'text-zinc-200'}">${Number(r.temp).toFixed(1)}</td>
+          <td class="py-3 px-4 border-r border-line text-right text-zinc-300">${Number(r.vib).toFixed(1)}</td>
+          <td class="py-3 px-4 border-r border-line">${stateBadge}</td>
+          <td class="py-3 px-4 border-r border-line text-zinc-400">${r.time}</td>
+          <td class="py-3 px-4 text-right">
+            <button onclick="runDiagnostics('${r.id}', '${r.node}', '${r.state}')" class="border border-line px-2 py-1 text-[10px] text-zinc-300 hover:border-amber hover:text-amber uppercase">PING_NODE</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function filterTable(state) {
+      activeFilter = state;
+      document.querySelectorAll('.flt-btn').forEach(btn => {
+        btn.className = "flt-btn px-3.5 py-1.5 text-[11px] text-zinc-400 hover:text-white border-l border-line uppercase";
+      });
+      document.getElementById('flt-' + state).className = "flt-btn px-3.5 py-1.5 text-[11px] font-bold bg-amber text-black uppercase";
+      renderLedger();
+    }
+
+    function pushSerialLog(msg, level = 'INFO') {
+      const term = document.getElementById('serial-terminal');
+      const now = new Date().toISOString().split('T')[1].slice(0, 11);
+      const line = document.createElement('div');
+      let color = 'text-zinc-400';
+      if (level === 'WARN') color = 'text-amber';
+      if (level === 'CRIT') color = 'text-crimson font-bold';
+      if (level === 'OK') color = 'text-lime';
+      line.className = color + ' break-all';
+      line.innerHTML = `<span class="text-zinc-600">[${now}]</span> ${msg}`;
+      term.appendChild(line);
+      term.scrollTop = term.scrollHeight;
+    }
+
+    function clearTerminal() {
+      document.getElementById('serial-terminal').innerHTML = '';
+      pushSerialLog('SERIAL BUFFER CLEARED BY OPERATOR.', 'INFO');
+    }
+
+    const canvas = document.getElementById('telemetryCanvas');
+    const ctx = canvas.getContext('2d');
+    let tempHistory = new Array(120).fill(42.5);
+    let vibHistory = new Array(120).fill(2.4);
+
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function drawWaveforms() {
+      if (!wavePaused) {
+        tempHistory.push(Math.max(20, Math.min(95, currentTemp + (Math.random() - 0.5) * 1.4)));
+        tempHistory.shift();
+        vibHistory.push(Math.max(0.5, Math.min(12, currentVib + (Math.random() - 0.5) * 0.45)));
+        vibHistory.shift();
+      }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const limitY = canvas.height - ((thermalLimit / 100) * canvas.height);
+      ctx.strokeStyle = 'rgba(255, 23, 68, 0.45)';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(0, limitY);
+      ctx.lineTo(canvas.width, limitY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.strokeStyle = '#FF6B00';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      tempHistory.forEach((val, idx) => {
+        const x = (idx / (tempHistory.length - 1)) * canvas.width;
+        const y = canvas.height - ((val / 100) * canvas.height);
+        if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      ctx.strokeStyle = '#00E676';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      vibHistory.forEach((val, idx) => {
+        const x = (idx / (vibHistory.length - 1)) * canvas.width;
+        const y = canvas.height - ((val / 15) * canvas.height);
+        if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+    setInterval(drawWaveforms, 120);
+
+    function togglePauseWave() {
+      wavePaused = !wavePaused;
+      const btn = document.getElementById('btn-pause');
+      btn.innerText = wavePaused ? 'RESUME' : 'PAUSE';
+    }
+
+    function openModal() {
+      document.getElementById('payload-modal').classList.remove('hidden');
+      document.getElementById('payload-modal').classList.add('flex');
+    }
+    function closeModal() {
+      document.getElementById('payload-modal').classList.add('hidden');
+      document.getElementById('payload-modal').classList.remove('flex');
+    }
+
+    function updateReadoutUI(temp, vib, limit) {
+      currentTemp = temp; currentVib = vib; thermalLimit = limit;
+      document.getElementById('val-temp').innerHTML = `${temp.toFixed(1)}<span class="text-lg text-zinc-500 font-mono">°C</span>`;
+      document.getElementById('val-vib').innerHTML = `${vib.toFixed(2)}<span class="text-lg text-zinc-500 font-mono">mm/s</span>`;
+      document.getElementById('lbl-threshold').innerText = `${limit.toFixed(1)}°C`;
+      const bar = document.getElementById('bar-temp');
+      const tag = document.getElementById('temp-status-tag');
+      bar.style.width = Math.min(100, Math.round(temp)) + '%';
+      if (temp >= limit || vib >= 6.0) {
+        bar.className = 'bg-crimson h-full transition-all duration-300';
+        tag.className = 'text-[10px] px-1.5 py-0.5 bg-crimson text-black font-bold animate-pulse';
+        tag.innerText = 'CRITICAL';
+        return 'CRITICAL';
+      } else if (temp >= limit - 8 || vib >= 4.0) {
+        bar.className = 'bg-amber h-full transition-all duration-300';
+        tag.className = 'text-[10px] px-1.5 py-0.5 border border-amber text-amber bg-amber/10';
+        tag.innerText = 'WARNING';
+        return 'WARNING';
+      } else {
+        bar.className = 'bg-lime h-full transition-all duration-300';
+        tag.className = 'text-[10px] px-1.5 py-0.5 border border-lime/40 text-lime bg-lime/5';
+        tag.innerText = 'NOMINAL';
+        return 'NOMINAL';
+      }
+    }
+
+    function submitPayload(e) {
+      e.preventDefault();
+      const node = document.getElementById('inp-node').value;
+      const temp = parseFloat(document.getElementById('inp-temp').value);
+      const vib = parseFloat(document.getElementById('inp-vib').value);
+      const limit = parseFloat(document.getElementById('inp-limit').value);
+      const state = updateReadoutUI(temp, vib, limit);
+      const hexId = '0x' + Math.floor(Math.random() * 65535).toString(16).toUpperCase().padStart(4, '0');
+      const timeStr = new Date().toTimeString().split(' ')[0] + '.00';
+      ledgerData.unshift({ id: hexId, node: node, sector: "MANUAL_INJ", temp: temp, vib: vib, state: state, time: timeStr });
+      renderLedger();
+      closeModal();
+      pushSerialLog(`PAYLOAD [${hexId}] -> ${node} STATE=${state}`, state === 'CRITICAL' ? 'CRIT' : 'OK');
+      spawnAlarm(`PACKET [${hexId}]: ${node} (${temp}°C / ${state})`, state);
+    }
+
+    function triggerRandomSpike() {
+      const isSpike = Math.random() > 0.4;
+      const newTemp = isSpike ? +(66 + Math.random() * 14).toFixed(1) : +(40 + Math.random() * 12).toFixed(1);
+      const newVib = isSpike ? +(6.2 + Math.random() * 2.5).toFixed(2) : +(1.8 + Math.random() * 1.5).toFixed(2);
+      const state = updateReadoutUI(newTemp, newVib, thermalLimit);
+      pushSerialLog(`STRESS_TEST -> TEMP:${newTemp}C VIB:${newVib}mm/s [${state}]`, state === 'CRITICAL' ? 'CRIT' : 'INFO');
+      spawnAlarm(`UJI BEBAN: Suhu ${newTemp}°C | Getaran ${newVib} mm/s (${state})`, state);
+    }
+
+    function runDiagnostics(id, node, state) {
+      pushSerialLog(`DIAG_REQ -> ${id} (${node}) ... RTT=1.4ms`, 'INFO');
+      spawnAlarm(`DIAGNOSA [${id}]: Status ${state} terverifikasi.`, state);
+    }
+
+    function spawnAlarm(msg, state = 'NOMINAL') {
+      const stack = document.getElementById('alarm-stack');
+      const box = document.createElement('div');
+      let style = 'border-lime bg-panel text-white';
+      if (state === 'CRITICAL') style = 'border-crimson bg-crimson text-black font-bold';
+      if (state === 'WARNING') style = 'border-amber bg-panel text-amber';
+      box.className = `pointer-events-auto border-2 ${style} p-3 text-xs font-mono flex items-start justify-between space-x-3`;
+      box.innerHTML = `<div>${msg}</div><button onclick="this.parentElement.remove()">[X]</button>`;
+      stack.appendChild(box);
+      setTimeout(() => { if (box.parentElement) box.remove(); }, 4000);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderLedger();
+      pushSerialLog('MQTT_BROKER CONNECTED -> wss://broker.predikta.local:8883', 'OK');
+      pushSerialLog('SUBSCRIBED TO 4 INDUSTRIAL PLC NODES', 'INFO');
+      pushSerialLog('MOD-09 SPINDLE THERMAL ANOMALY LOGGED (69.8 C)', 'CRIT');
+    });
+  </script>
+</body>
+</html>
